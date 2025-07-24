@@ -1,5 +1,9 @@
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, model_validator, constr
 from typing import List, Optional, Literal
+
+# Accepts only time strings in 24-hour format like "08:00", "23:59"
+TimeStr = constr(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+
 
 # ========== TimeSlot ==========
 class TimeSlot(BaseModel):
@@ -7,8 +11,9 @@ class TimeSlot(BaseModel):
     Represents a specific time slot on a given day.
     """
     day: Literal["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday"]
-    start: str  # Format: "HH:MM", e.g., "08:00"
-    end: str    # Format: "HH:MM", e.g., "10:00"
+    start: TimeStr  # Format: "HH:MM", e.g., "08:00"
+    end: TimeStr  # Format: "HH:MM", e.g., "10:00"
+
 
 # ========== Session Patterns ==========
 
@@ -62,6 +67,7 @@ class SessionPattern(BaseModel):
 
         return model
 
+
 # ========== Course ==========
 
 class Course(BaseModel):
@@ -101,6 +107,7 @@ class Course(BaseModel):
 
         return model
 
+
 # ========== Student ==========
 
 class Student(BaseModel):
@@ -109,7 +116,8 @@ class Student(BaseModel):
     """
     full_name: str
     student_number: str  # e.g., "401234567"
-    group_id: int        # Refers to StudentGroup.id
+    group_id: int  # Refers to StudentGroup.id
+
 
 # ========== StudentGroup ==========
 
@@ -118,9 +126,10 @@ class StudentGroup(BaseModel):
     Represents a group of students (e.g., a class or cohort).
     """
     id: int
-    name: str        # e.g., "CS-401"
-    major: str       # e.g., "Computer Engineering"
+    name: str  # e.g., "CS-401"
+    major: str  # e.g., "Computer Engineering"
     entry_year: int  # e.g., 2022
+
 
 # ========== Instructor ==========
 
@@ -130,8 +139,9 @@ class Instructor(BaseModel):
     """
     id: int
     full_name: str
-    available_slots: List[TimeSlot]                 # Instructor is only assignable within these slots
+    available_slots: List[TimeSlot]  # Instructor is only assignable within these slots
     preferred_slots: Optional[List[TimeSlot]] = None  # Soft preference (optional)
+
 
 # ========== Room ==========
 
@@ -140,9 +150,10 @@ class Room(BaseModel):
     Represents a classroom or lab with capacity constraints.
     """
     id: int
-    name: str        # e.g., "Room 101"
-    capacity: int    # Max number of students
+    name: str  # e.g., "Room 101"
+    capacity: int  # Max number of students
     is_lab: bool = False  # True if lab; used only for lab courses
+
 
 # ========== Scheduled Session & Timetable ==========
 
@@ -150,12 +161,13 @@ class ScheduledSession(BaseModel):
     """
     Represents a scheduled class session (theory or lab).
     """
-    course_id: int         # ID of the course being taught
-    group_id: int          # ID of the student group attending the session
-    instructor_id: int     # ID of the instructor assigned to this session
-    room_id: int           # ID of the room assigned for this session
-    slot: TimeSlot         # Scheduled time slot for the session
+    course_id: int  # ID of the course being taught
+    group_id: int  # ID of the student group attending the session
+    instructor_id: int  # ID of the instructor assigned to this session
+    room_id: int  # ID of the room assigned for this session
+    slot: TimeSlot  # Scheduled time slot for the session
     type: Literal["theory", "lab"]  # Type of session (theory or lab)
+
 
 class Timetable(BaseModel):
     """
