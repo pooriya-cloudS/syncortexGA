@@ -7,3 +7,4 @@ coverage
 flake8
 black
 mypy
+pydantic[mypy]==2.11.7
