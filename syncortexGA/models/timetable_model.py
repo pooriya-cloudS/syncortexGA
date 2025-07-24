@@ -1,8 +1,8 @@
-from pydantic import BaseModel, model_validator, constr
-from typing import List, Optional, Literal
+from pydantic import BaseModel, model_validator, StringConstraints
+from typing import List, Optional, Literal, Annotated
 
 # Accepts only time strings in 24-hour format like "08:00", "23:59"
-TimeStr = constr(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")
+TimeStr = Annotated[str, StringConstraints(pattern=r"^(?:[01]\d|2[0-3]):[0-5]\d$")]
 
 
 # ========== TimeSlot ==========
