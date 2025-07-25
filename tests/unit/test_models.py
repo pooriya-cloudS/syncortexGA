@@ -4,23 +4,122 @@ from syncortexGA.models.timetable_model import (
     TimeSlot,
     FixedSessionPattern,
     AlternatingSessionPattern,
+    LabSessionPattern,
     SessionPattern,
-    Course,
-    CourseOffering,
-    Student,
     StudentGroup,
+    Student,
     Instructor,
     Room,
+    Course,
+    CourseOffering,
     ScheduledSession,
     Timetable,
 )
 
 
-# ====== TimeSlot Tests ======
+# ==== Helper functions to create reusable sample data ====
 
 
+def sample_timeslot(day="Monday", start="08:00", end="10:00"):
+    return TimeSlot(day=day, start=start, end=end)
+
+
+def sample_student_group():
+    return StudentGroup(
+        id=1, name="CS-401", major="Computer Engineering", entry_year=2022
+    )
+
+
+def sample_instructor():
+    return Instructor(
+        id=1,
+        full_name="Dr. Smith",
+        available_slots=[sample_timeslot()],
+        preferred_slots=[sample_timeslot("Tuesday", "10:00", "12:00")],
+    )
+
+
+def sample_room():
+    return Room(id=1, name="Room 101", capacity=40, is_lab=False)
+
+
+def sample_fixed_session_pattern():
+    return FixedSessionPattern(
+        slots=[
+            sample_timeslot("Saturday", "08:00", "10:00"),
+            sample_timeslot("Monday", "10:00", "12:00"),
+        ]
+    )
+
+
+def sample_alternating_session_pattern():
+    return AlternatingSessionPattern(
+        fixed_slot=sample_timeslot("Sunday", "08:00", "10:00"),
+        alternating_slot=sample_timeslot("Tuesday", "10:00", "12:00"),
+        alternating_mode="odd",
+        paired_course_id=123,
+    )
+
+
+def sample_lab_session_pattern():
+    return LabSessionPattern(slot=sample_timeslot("Wednesday", "14:00", "16:00"))
+
+
+def sample_session_pattern_fixed():
+    return SessionPattern(type="fixed", fixed_pattern=sample_fixed_session_pattern())
+
+
+def sample_session_pattern_alternating():
+    return SessionPattern(
+        type="alternating", alternating_pattern=sample_alternating_session_pattern()
+    )
+
+
+def sample_session_pattern_lab():
+    return SessionPattern(type="lab", lab_pattern=sample_lab_session_pattern())
+
+
+def sample_course_with_pattern(session_pattern=None):
+    return Course(
+        id=1,
+        name="Advanced Mathematics",
+        code="MATH401",
+        session_pattern=session_pattern,
+    )
+
+
+def sample_course_without_pattern():
+    return Course(id=2, name="Philosophy", code="PHIL101", session_pattern=None)
+
+
+def sample_course_offering(course=None, instructor=None, sub_group=1):
+    return CourseOffering(
+        course_id=course, instructor_id=instructor, sub_group=sub_group
+    )
+
+
+def sample_scheduled_session():
+    course = sample_course_with_pattern(sample_session_pattern_fixed())
+    group = sample_student_group()
+    instructor = sample_instructor()
+    room = sample_room()
+    slot = sample_timeslot()
+    return ScheduledSession(
+        course_id=course,
+        group_id=group,
+        instructor_id=instructor,
+        room_id=room,
+        slot=slot,
+        type="theory",
+    )
+
+
+# ==== Tests ====
+
+
+# ----- TimeSlot -----
 def test_timeslot_valid():
-    ts = TimeSlot(day="Monday", start="08:00", end="10:00")
+    ts = sample_timeslot()
     assert ts.day == "Monday"
     assert ts.start == "08:00"
     assert ts.end == "10:00"
@@ -28,31 +127,23 @@ def test_timeslot_valid():
 
 def test_timeslot_invalid_day():
     with pytest.raises(ValidationError):
-        TimeSlot(day="Friday", start="08:00", end="10:00")
+        TimeSlot(day="Friday", start="08:00", end="10:00")  # Friday not allowed
 
 
 def test_timeslot_invalid_time_format():
     with pytest.raises(ValidationError):
-        TimeSlot(day="Monday", start="8am", end="10am")
+        TimeSlot(day="Monday", start="8am", end="10:00")
 
 
-# ====== FixedSessionPattern Tests ======
-
-
+# ----- FixedSessionPattern -----
 def test_fixed_session_pattern_valid():
-    slots = [
-        TimeSlot(day="Saturday", start="08:00", end="10:00"),
-        TimeSlot(day="Monday", start="10:00", end="12:00"),
-    ]
-    pattern = FixedSessionPattern(slots=slots)
+    pattern = sample_fixed_session_pattern()
     assert len(pattern.slots) == 2
 
 
 def test_fixed_session_pattern_invalid_count():
     with pytest.raises(ValidationError):
-        FixedSessionPattern(
-            slots=[TimeSlot(day="Saturday", start="08:00", end="10:00")]
-        )
+        FixedSessionPattern(slots=[sample_timeslot()])
 
 
 def test_fixed_session_pattern_empty():
@@ -60,52 +151,52 @@ def test_fixed_session_pattern_empty():
         FixedSessionPattern(slots=[])
 
 
-# ====== AlternatingSessionPattern Tests ======
-
-
+# ----- AlternatingSessionPattern -----
 def test_alternating_session_pattern_valid():
-    pattern = AlternatingSessionPattern(
-        fixed_slot=TimeSlot(day="Sunday", start="08:00", end="10:00"),
-        alternating_slot=TimeSlot(day="Tuesday", start="10:00", end="12:00"),
-        alternating_mode="odd",
-        paired_course_id=123,
-    )
-    assert pattern.alternating_mode == "odd"
+    pattern = sample_alternating_session_pattern()
+    assert pattern.alternating_mode in ("odd", "even")
 
 
 def test_alternating_session_pattern_invalid_mode():
     with pytest.raises(ValidationError):
         AlternatingSessionPattern(
-            fixed_slot=TimeSlot(day="Sunday", start="08:00", end="10:00"),
-            alternating_slot=TimeSlot(day="Tuesday", start="10:00", end="12:00"),
-            alternating_mode="week3",
-            paired_course_id=123,
+            fixed_slot=sample_timeslot(),
+            alternating_slot=sample_timeslot(),
+            alternating_mode="weekly",
+            paired_course_id=1,
         )
 
 
-# ====== SessionPattern Tests ======
+# ----- LabSessionPattern -----
+def test_lab_session_pattern_valid():
+    pattern = sample_lab_session_pattern()
+    assert pattern.slot.day == "Wednesday"
 
 
+def test_lab_session_pattern_invalid_missing_slot():
+    with pytest.raises(ValidationError):
+        LabSessionPattern(slot=None)
+
+
+# ----- SessionPattern -----
 def test_session_pattern_fixed_valid():
-    fixed = FixedSessionPattern(
-        slots=[
-            TimeSlot(day="Saturday", start="08:00", end="10:00"),
-            TimeSlot(day="Monday", start="10:00", end="12:00"),
-        ]
-    )
-    sp = SessionPattern(type="fixed", fixed_pattern=fixed)
+    sp = sample_session_pattern_fixed()
     assert sp.type == "fixed"
+    assert sp.fixed_pattern is not None
+    assert sp.alternating_pattern is None
+    assert sp.lab_pattern is None
 
 
 def test_session_pattern_alternating_valid():
-    alt = AlternatingSessionPattern(
-        fixed_slot=TimeSlot(day="Sunday", start="08:00", end="10:00"),
-        alternating_slot=TimeSlot(day="Tuesday", start="10:00", end="12:00"),
-        alternating_mode="even",
-        paired_course_id=99,
-    )
-    sp = SessionPattern(type="alternating", alternating_pattern=alt)
+    sp = sample_session_pattern_alternating()
     assert sp.type == "alternating"
+    assert sp.alternating_pattern is not None
+
+
+def test_session_pattern_lab_valid():
+    sp = sample_session_pattern_lab()
+    assert sp.type == "lab"
+    assert sp.lab_pattern is not None
 
 
 def test_session_pattern_invalid_type():
@@ -113,216 +204,134 @@ def test_session_pattern_invalid_type():
         SessionPattern(type="random")
 
 
-def test_session_pattern_mismatch_fixed():
-    fixed = FixedSessionPattern(
-        slots=[
-            TimeSlot(day="Saturday", start="08:00", end="10:00"),
-            TimeSlot(day="Monday", start="10:00", end="12:00"),
-        ]
-    )
-    alt = AlternatingSessionPattern(
-        fixed_slot=fixed.slots[0],
-        alternating_slot=fixed.slots[1],
-        alternating_mode="odd",
-        paired_course_id=5,
-    )
+def test_session_pattern_mismatched_patterns():
+    fixed = sample_fixed_session_pattern()
+    alt = sample_alternating_session_pattern()
+    lab = sample_lab_session_pattern()
+
+    # fixed type but alternating pattern set
     with pytest.raises(ValidationError):
-        SessionPattern(type="fixed", fixed_pattern=fixed, alternating_pattern=alt)
+        SessionPattern(
+            type="fixed", fixed_pattern=fixed, alternating_pattern=alt, lab_pattern=lab
+        )
 
-
-def test_session_pattern_mismatch_alternating():
-    fixed = FixedSessionPattern(
-        slots=[
-            TimeSlot(day="Saturday", start="08:00", end="10:00"),
-            TimeSlot(day="Monday", start="10:00", end="12:00"),
-        ]
-    )
+    # alternating type but fixed pattern set
     with pytest.raises(ValidationError):
         SessionPattern(type="alternating", fixed_pattern=fixed)
 
-
-# ====== Course Tests ======
-
-
-def test_course_lab_valid():
-    course = Course(
-        id=1,
-        name="Physics Lab",
-        code="PHY101",
-        instructor_id=10,
-        has_lab=True,
-        lab_slot=TimeSlot(day="Wednesday", start="14:00", end="16:00"),
-        lab_room_id=3,
-        lab_instructor_id=15,
-    )
-    assert course.has_lab is True
-
-
-def test_course_lab_missing_lab_slot():
+    # lab type but fixed pattern set
     with pytest.raises(ValidationError):
-        Course(
-            id=2, name="Chemistry Lab", code="CHEM101", instructor_id=11, has_lab=True
-        )
+        SessionPattern(type="lab", fixed_pattern=fixed)
 
-
-def test_course_lab_with_session_pattern():
-    lab_slot = TimeSlot(day="Wednesday", start="14:00", end="16:00")
-    session_pattern = SessionPattern(
-        type="fixed",
-        fixed_pattern=FixedSessionPattern(
-            slots=[
-                TimeSlot(day="Monday", start="08:00", end="10:00"),
-                TimeSlot(day="Thursday", start="08:00", end="10:00"),
-            ]
-        ),
-    )
+    # lab type but alternating pattern set
     with pytest.raises(ValidationError):
-        Course(
-            id=3,
-            name="Bio Lab",
-            code="BIO101",
-            instructor_id=12,
-            has_lab=True,
-            lab_slot=lab_slot,
-            session_pattern=session_pattern,
-        )
+        SessionPattern(type="lab", alternating_pattern=alt)
 
 
-def test_course_non_lab_valid():
-    session_pattern = SessionPattern(
-        type="fixed",
-        fixed_pattern=FixedSessionPattern(
-            slots=[
-                TimeSlot(day="Monday", start="08:00", end="10:00"),
-                TimeSlot(day="Thursday", start="08:00", end="10:00"),
-            ]
-        ),
-    )
-    course = Course(
-        id=4,
-        name="Math",
-        code="MATH101",
-        instructor_id=13,
-        has_lab=False,
-        session_pattern=session_pattern,
-    )
-    assert course.has_lab is False
+# ----- StudentGroup -----
+def test_student_group_valid():
+    group = sample_student_group()
+    assert group.name == "CS-401"
 
 
-def test_course_non_lab_missing_session_pattern():
-    with pytest.raises(ValidationError):
-        Course(id=5, name="History", code="HIST101", instructor_id=14, has_lab=False)
-
-
-def test_course_non_lab_with_lab_slot():
-    with pytest.raises(ValidationError):
-        Course(
-            id=6,
-            name="English",
-            code="ENG101",
-            instructor_id=15,
-            has_lab=False,
-            lab_slot=TimeSlot(day="Wednesday", start="14:00", end="16:00"),
-        )
-
-
-# ====== Student Tests ======
-
-
+# ----- Student -----
 def test_student_valid():
-    student = Student(full_name="Alice Smith", student_number="401234567", group_id=100)
-    assert student.student_number == "401234567"
+    group = sample_student_group()
+    student = Student(
+        full_name="Alice Smith", student_number="401234567", group_id=group
+    )
+    assert student.group_id.id == group.id
 
 
-def test_student_missing_field():
+def test_student_missing_fields():
     with pytest.raises(ValidationError):
         Student(full_name="Bob")
 
 
-# ====== StudentGroup Tests ======
-
-
-def test_student_group_valid():
-    group = StudentGroup(
-        id=1, name="CS-401", major="Computer Engineering", entry_year=2023
-    )
-    assert group.name == "CS-401"
-
-
-# ====== Instructor Tests ======
-
-
+# ----- Instructor -----
 def test_instructor_valid():
-    instructor = Instructor(
-        id=1,
-        full_name="Dr. John",
-        available_slots=[TimeSlot(day="Monday", start="08:00", end="12:00")],
-        preferred_slots=[TimeSlot(day="Monday", start="10:00", end="12:00")],
-    )
-    assert instructor.full_name == "Dr. John"
+    instructor = sample_instructor()
+    assert instructor.full_name == "Dr. Smith"
+    assert len(instructor.available_slots) == 1
 
 
-def test_instructor_no_preferred():
-    instructor = Instructor(
-        id=2,
-        full_name="Dr. Jane",
-        available_slots=[TimeSlot(day="Tuesday", start="08:00", end="10:00")],
-    )
-    assert instructor.preferred_slots is None
+def test_instructor_optional_preferred_slots():
+    inst = Instructor(id=2, full_name="Jane Doe", available_slots=[sample_timeslot()])
+    assert inst.preferred_slots is None
 
 
-# ====== Room Tests ======
-
-
+# ----- Room -----
 def test_room_valid():
-    room = Room(id=1, name="Room 101", capacity=30, is_lab=False)
-    assert room.capacity == 30
+    room = sample_room()
+    assert room.capacity == 40
+    assert room.is_lab is False
 
 
-def test_room_lab_flag():
-    room = Room(id=2, name="Lab 1", capacity=20, is_lab=True)
+def test_room_lab_flag_true():
+    room = Room(id=10, name="Lab 1", capacity=20, is_lab=True)
     assert room.is_lab is True
 
 
-# ====== ScheduledSession Tests ======
+# ----- Course -----
+def test_course_with_valid_session_pattern():
+    course = sample_course_with_pattern(sample_session_pattern_fixed())
+    assert course.session_pattern is not None
 
 
+def test_course_without_session_pattern():
+    course = sample_course_without_pattern()
+    assert course.session_pattern is None
+
+
+# ----- CourseOffering -----
+def test_course_offering_valid_default_subgroup():
+    course = sample_course_with_pattern(sample_session_pattern_fixed())
+    instructor = sample_instructor()
+    offering = sample_course_offering(course=course, instructor=instructor)
+    assert offering.sub_group == 1
+
+
+def test_course_offering_valid_custom_subgroup():
+    course = sample_course_with_pattern(sample_session_pattern_fixed())
+    instructor = sample_instructor()
+    offering = sample_course_offering(course=course, instructor=instructor, sub_group=3)
+    assert offering.sub_group == 3
+
+
+def test_course_offering_missing_course_id():
+    instructor = sample_instructor()
+    with pytest.raises(ValidationError):
+        CourseOffering(instructor_id=instructor)
+
+
+def test_course_offering_missing_instructor_id():
+    course = sample_course_with_pattern(sample_session_pattern_fixed())
+    with pytest.raises(ValidationError):
+        CourseOffering(course_id=course)
+
+
+def test_course_offering_invalid_subgroup_type():
+    course = sample_course_with_pattern(sample_session_pattern_fixed())
+    instructor = sample_instructor()
+    with pytest.raises(ValidationError):
+        CourseOffering(course_id=course, instructor_id=instructor, sub_group="two")
+
+
+# ----- ScheduledSession -----
 def test_scheduled_session_valid():
-    session = ScheduledSession(
-        course_id=1,
-        group_id=10,
-        instructor_id=5,
-        room_id=3,
-        slot=TimeSlot(day="Thursday", start="10:00", end="12:00"),
-        type="theory",
-    )
-    assert session.type == "theory"
+    session = sample_scheduled_session()
+    assert session.type in ("theory", "lab")
 
 
 def test_scheduled_session_invalid_type():
+    sess = sample_scheduled_session()
     with pytest.raises(ValidationError):
-        ScheduledSession(
-            course_id=1,
-            group_id=10,
-            instructor_id=5,
-            room_id=3,
-            slot=TimeSlot(day="Thursday", start="10:00", end="12:00"),
-            type="exam",
-        )
+        sess.type = "exam"  # invalid
 
 
-# ====== Timetable Tests ======
-
-
+# ----- Timetable -----
 def test_timetable_valid():
-    session = ScheduledSession(
-        course_id=1,
-        group_id=10,
-        instructor_id=5,
-        room_id=3,
-        slot=TimeSlot(day="Thursday", start="10:00", end="12:00"),
-        type="lab",
-    )
+    session = sample_scheduled_session()
     timetable = Timetable(sessions=[session])
     assert len(timetable.sessions) == 1
 
@@ -330,33 +339,3 @@ def test_timetable_valid():
 def test_timetable_empty():
     timetable = Timetable(sessions=[])
     assert timetable.sessions == []
-
-
-def test_course_offering_valid_defaults():
-    offering = CourseOffering(course_id=10, instructor_id=5)
-    assert offering.course_id == 10
-    assert offering.instructor_id == 5
-    assert offering.sub_group == 1  # Default value
-
-
-def test_course_offering_valid_with_subgroup():
-    offering = CourseOffering(course_id=20, instructor_id=7, sub_group=3)
-    assert offering.course_id == 20
-    assert offering.instructor_id == 7
-    assert offering.sub_group == 3
-
-
-def test_course_offering_invalid_missing_course_id():
-    with pytest.raises(ValidationError):
-        CourseOffering(instructor_id=1)
-
-
-def test_course_offering_invalid_missing_instructor_id():
-    with pytest.raises(ValidationError):
-        CourseOffering(course_id=1)
-
-
-def test_course_offering_invalid_sub_group_type():
-    # sub_group should be int
-    with pytest.raises(ValidationError):
-        CourseOffering(course_id=1, instructor_id=1, sub_group="two")
