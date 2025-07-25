@@ -77,7 +77,6 @@ class Course(BaseModel):
     has_lab: bool = False
     lab_slot: Optional[TimeSlot] = None
     lab_room_id: Optional[int] = None
-    lab_instructor_id: Optional[int] = None
     session_pattern: Optional[SessionPattern] = None
 
     @model_validator(mode="after")
@@ -93,6 +92,23 @@ class Course(BaseModel):
             if model.lab_slot:
                 raise ValueError("Non-lab courses must not have lab slot")
         return model
+
+
+class CourseOffering(BaseModel):
+    """
+    Represents the offering of a course by an instructor for a specific subgroup.
+    Allows multiple instructors to offer the same course to different subgroups,
+    and a single instructor to teach the same course in multiple subgroups.
+
+    Attributes:
+        course_id (int): Identifier of the course being offered.
+        instructor_id (int): Identifier of the instructor teaching the course.
+        sub_group (int): Sub-group number within the course offering. Default is 1.
+    """
+
+    course_id: int
+    instructor_id: int
+    sub_group: int = 1  # Default subgroup is 1
 
 
 # ========== Student ==========
