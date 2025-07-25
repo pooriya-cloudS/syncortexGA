@@ -6,6 +6,7 @@ from syncortexGA.models.timetable_model import (
     AlternatingSessionPattern,
     SessionPattern,
     Course,
+    CourseOffering,
     Student,
     StudentGroup,
     Instructor,
@@ -329,3 +330,33 @@ def test_timetable_valid():
 def test_timetable_empty():
     timetable = Timetable(sessions=[])
     assert timetable.sessions == []
+
+
+def test_course_offering_valid_defaults():
+    offering = CourseOffering(course_id=10, instructor_id=5)
+    assert offering.course_id == 10
+    assert offering.instructor_id == 5
+    assert offering.sub_group == 1  # Default value
+
+
+def test_course_offering_valid_with_subgroup():
+    offering = CourseOffering(course_id=20, instructor_id=7, sub_group=3)
+    assert offering.course_id == 20
+    assert offering.instructor_id == 7
+    assert offering.sub_group == 3
+
+
+def test_course_offering_invalid_missing_course_id():
+    with pytest.raises(ValidationError):
+        CourseOffering(instructor_id=1)
+
+
+def test_course_offering_invalid_missing_instructor_id():
+    with pytest.raises(ValidationError):
+        CourseOffering(course_id=1)
+
+
+def test_course_offering_invalid_sub_group_type():
+    # sub_group should be int
+    with pytest.raises(ValidationError):
+        CourseOffering(course_id=1, instructor_id=1, sub_group="two")
