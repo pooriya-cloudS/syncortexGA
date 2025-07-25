@@ -1,4 +1,4 @@
-from pydantic import BaseModel, model_validator, StringConstraints
+from pydantic import BaseModel, model_validator, StringConstraints, ConfigDict
 from typing import List, Optional, Literal, Annotated
 
 # Accepts only time strings in 24-hour format like "08:00", "23:59"
@@ -39,15 +39,31 @@ class AlternatingSessionPattern(BaseModel):
     paired_course_id: int
 
 
+class LabSessionPattern(BaseModel):
+    """
+    Represents a lab session pattern that occurs weekly at a fixed time.
+    This is used for lab courses that do not have a session pattern.
+    """
+
+    slot: TimeSlot
+
+    @model_validator(mode="after")
+    def check_single_slot(cls, model):
+        if not model.slot:
+            raise ValueError("LabSessionPattern must have exactly 1 slot")
+        return model
+
+
 class SessionPattern(BaseModel):
     """
     Wraps either a fixed or alternating session pattern.
     Only one of the patterns must be set based on the type.
     """
 
-    type: Literal["fixed", "alternating"]
+    type: Literal["fixed", "alternating", "lab"]
     fixed_pattern: Optional[FixedSessionPattern] = None
     alternating_pattern: Optional[AlternatingSessionPattern] = None
+    lab_pattern: Optional[LabSessionPattern] = None
 
     @model_validator(mode="after")
     def validate_only_one_pattern(cls, model):
@@ -59,65 +75,14 @@ class SessionPattern(BaseModel):
                 raise ValueError(
                     "For type='alternating', " "only alternating_pattern must be set"
                 )
+        elif model.type == "lab":
+            if (
+                not model.lab_pattern
+                or model.fixed_pattern
+                or model.alternating_pattern
+            ):
+                raise ValueError("For type='lab', only lab_pattern must be set")
         return model
-
-
-# ========== Course ==========
-class Course(BaseModel):
-    """
-    Represents a course that may or may not include a lab.
-    Lab courses must define a lab slot and cannot have a session pattern.
-    Non-lab courses must define a session pattern and cannot have a lab slot.
-    """
-
-    id: int
-    name: str
-    code: str
-    instructor_id: int
-    has_lab: bool = False
-    lab_slot: Optional[TimeSlot] = None
-    lab_room_id: Optional[int] = None
-    session_pattern: Optional[SessionPattern] = None
-
-    @model_validator(mode="after")
-    def validate_course(cls, model):
-        if model.has_lab:
-            if not model.lab_slot:
-                raise ValueError("Lab slot must be defined for lab courses")
-            if model.session_pattern:
-                raise ValueError("Lab courses must not have session pattern")
-        else:
-            if not model.session_pattern:
-                raise ValueError("Non-lab courses must have a session pattern")
-            if model.lab_slot:
-                raise ValueError("Non-lab courses must not have lab slot")
-        return model
-
-
-class CourseOffering(BaseModel):
-    """
-    Represents the offering of a course by an instructor for a specific subgroup.
-    Allows multiple instructors to offer the same course to different subgroups,
-    and a single instructor to teach the same course in multiple subgroups.
-
-    Attributes:
-        course_id (int): Identifier of the course being offered.
-        instructor_id (int): Identifier of the instructor teaching the course.
-        sub_group (int): Sub-group number within the course offering. Default is 1.
-    """
-
-    course_id: int
-    instructor_id: int
-    sub_group: int = 1  # Default subgroup is 1
-
-
-# ========== Student ==========
-class Student(BaseModel):
-    """Represents a student belonging to a specific group."""
-
-    full_name: str
-    student_number: str  # e.g., "401234567"
-    group_id: int  # Refers to StudentGroup.id
 
 
 # ========== StudentGroup ==========
@@ -128,6 +93,15 @@ class StudentGroup(BaseModel):
     name: str  # e.g., "CS-401"
     major: str  # e.g., "Computer Engineering"
     entry_year: int  # e.g., 2022
+
+
+# ========== Student ==========
+class Student(BaseModel):
+    """Represents a student belonging to a specific group."""
+
+    full_name: str
+    student_number: str  # e.g., "401234567"
+    group_id: StudentGroup  # Refers to StudentGroup.id
 
 
 # ========== Instructor ==========
@@ -150,16 +124,60 @@ class Room(BaseModel):
     is_lab: bool = False
 
 
+# ========== Course ==========
+class Course(BaseModel):
+    """
+    Represents a course that may or may not include a lab.
+    Lab courses must define a lab slot and cannot have a session pattern.
+    Non-lab courses must define a session pattern and cannot have a lab slot.
+    """
+
+    id: int
+    name: str
+    code: str
+    # has_lab: bool = False
+    # lab_room_id: Optional[int] = None
+    session_pattern: Optional[SessionPattern] = None
+
+
+class CourseOffering(BaseModel):
+    """
+    Represents the offering of a course by an instructor for a specific subgroup.
+    Allows multiple instructors to offer the same course to different subgroups,
+    and a single instructor to teach the same course in multiple subgroups.
+
+    Attributes:
+        course_id (int): Identifier of the course being offered.
+        instructor_id (int): Identifier of the instructor teaching the course.
+        sub_group (int): Sub-group number within the course offering. Default is 1.
+    """
+
+    course_id: Course
+    instructor_id: Instructor
+    sub_group: int = 1  # Default subgroup is 1
+
+
 # ========== Scheduled Session & Timetable ==========
 class ScheduledSession(BaseModel):
     """Represents a scheduled class session (theory or lab)."""
 
-    course_id: int
-    group_id: int
-    instructor_id: int
-    room_id: int
+    course_id: Course
+    group_id: StudentGroup
+    instructor_id: Instructor
+    room_id: Room
     slot: TimeSlot
     type: Literal["theory", "lab"]
+
+    @model_validator(mode="after")
+    def validate_slot(cls, model):
+        if model.type == "lab" and not model.course_id.session_pattern:
+            raise ValueError("Lab sessions must have a lab session pattern defined")
+        if model.type == "theory" and not model.course_id.session_pattern:
+            raise ValueError("Theory sessions must have a session pattern defined")
+        if model.type not in ("theory", "lab"):
+            raise ValueError("Session type must be either 'theory' or 'lab'")
+        return model
+
 
 
 class Timetable(BaseModel):
