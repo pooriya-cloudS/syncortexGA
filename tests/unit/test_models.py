@@ -324,9 +324,20 @@ def test_scheduled_session_valid():
 
 
 def test_scheduled_session_invalid_type():
-    sess = sample_scheduled_session()
+    course = sample_course_with_pattern(sample_session_pattern_fixed())
+    group = sample_student_group()
+    instructor = sample_instructor()
+    room = sample_room()
+    slot = sample_timeslot()
     with pytest.raises(ValidationError):
-        sess.type = "exam"  # invalid
+        sess = ScheduledSession(
+            course_id=course,
+            group_id=group,
+            instructor_id=instructor,
+            room_id=room,
+            slot=slot,
+            type="exam",
+        )
 
 
 # ----- Timetable -----
