@@ -172,9 +172,9 @@ class ScheduledSession(BaseModel):
     def validate_slot(cls, model):
         if model.type == "lab" and not model.course_id.session_pattern:
             raise ValueError("Lab sessions must have a lab session pattern defined")
-        if model.type == "theory" and not model.course_id.session_pattern:
+        elif model.type == "theory" and not model.course_id.session_pattern:
             raise ValueError("Theory sessions must have a session pattern defined")
-        if model.type not in ("theory", "lab"):
+        elif model.type not in ("theory", "lab"):
             raise ValueError("Session type must be either 'theory' or 'lab'")
         return model
 
