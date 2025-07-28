@@ -179,7 +179,6 @@ class ScheduledSession(BaseModel):
         return model
 
 
-
 class Timetable(BaseModel):
     """Represents the final schedule as a list of sessions."""
 
