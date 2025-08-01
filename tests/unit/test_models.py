@@ -330,7 +330,7 @@ def test_scheduled_session_invalid_type():
     room = sample_room()
     slot = sample_timeslot()
     with pytest.raises(ValidationError):
-        sess = ScheduledSession(
+        ScheduledSession(
             course_id=course,
             group_id=group,
             instructor_id=instructor,
