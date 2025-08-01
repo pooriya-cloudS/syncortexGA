@@ -176,6 +176,11 @@ class ScheduledSession(BaseModel):
             raise ValueError("Theory sessions must have a session pattern defined")
         elif model.type not in ("theory", "lab"):
             raise ValueError("Session type must be either 'theory' or 'lab'")
+
+        if model.type == "lab" != model.course_id.session_pattern.type:
+            raise ValueError("The Type of Pattern must match the session type")
+        if model.type == "theory" and model.course_id.session_pattern.type == "lab":
+            raise ValueError("Theory sessions cannot have a lab session pattern")
         return model
 
 
